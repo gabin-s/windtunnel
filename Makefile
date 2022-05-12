@@ -12,14 +12,13 @@
 CC=gcc
 OMPFLAG=-fopenmp
 MPICC=mpicc
-CUDACC=nvcc
 
 # Flags for optimization and libs
 FLAGS=-O3 -Wall
 LIBS=-lm
 
 # Targets to build
-OBJS=wind_seq wind_omp wind_mpi wind_cuda
+OBJS=wind_seq wind_omp wind_mpi
 
 # Rules. By default show help
 help:
@@ -31,7 +30,6 @@ help:
 	@echo "make wind_seq	Build only the reference sequential version"
 	@echo "make wind_omp	Build only the OpenMP version"
 	@echo "make wind_mpi	Build only the MPI version"
-	@echo "make wind_cuda	Build only the CUDA version"
 	@echo
 	@echo "make all	Build all versions (Sequential, OpenMP)"
 	@echo "make debug	Build all version with demo output for small surfaces"
@@ -48,9 +46,6 @@ wind_omp: wind_omp.c
 
 wind_mpi: wind_mpi.c
 	$(MPICC) $(FLAGS) $(DEBUG) $< $(LIBS) -o $@
-
-wind_cuda: wind_cuda.cu
-	$(CUDACC) $(DEBUG) $< $(LIBS) -o $@
 
 # Remove the target files
 clean:

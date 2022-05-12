@@ -367,8 +367,20 @@ int main(int argc, char *argv[]) {
 	int resultsB[6];
 	int resultsC[6];
 
+	int size;
+	MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+	// number of columns for each MPI rank
+	int columns_per_task = columns / size;
+	int _columns = columns_per_task;
+	if(rank == size - 1)
+		_columns += columns % size;	
+
+	// absolute index of the first column
+	int j0 = rank * columns_per_task;
+
 // MPI Version: Eliminate this conditional to start doing the work in parallel
-if ( rank == 0 ) {
+// if ( rank == 0 ) {
 
 	/* 3. Initialization */
 	flow = (int *)malloc( sizeof(int) * (size_t)rows * (size_t)columns );
@@ -380,6 +392,7 @@ if ( rank == 0 ) {
 		MPI_Abort( MPI_COMM_WORLD, EXIT_FAILURE );
 	}
 
+	// set all elements to zero (TODO: replace by calloc?)
 	for( i=0; i<rows; i++ ) {
 		for( j=0; j<columns; j++ ) {
 			accessMat( flow, i, j ) = 0;
@@ -394,6 +407,11 @@ if ( rank == 0 ) {
 		// 4.1. Change inlet values each STEP iterations
 		if ( iter % STEPS == 1 ) {
 			for ( j=inlet_pos; j<inlet_pos+inlet_size; j++ ) {
+				// recompute j for the current rank 
+				int j_local = inlet_pos - j0;
+				if(j_local < 0) continue;
+				if(j_local > _columns) break;
+
 				// 4.1.1. Change the fans phase
 				double phase = iter / STEPS * ( M_PI / 4 );
 				double phase_step = M_PI / 2 / inlet_size;
@@ -403,7 +421,7 @@ if ( rank == 0 ) {
 				double noise = 0.5 - erand48( random_seq );
 
 				// 4.1.3. Store level in the first row of the ancillary structure
-				accessMat( flow, 0, j ) = (int)(PRECISION * (pressure_level + noise));
+				accessMat( flow, 0, j_local ) = (int)(PRECISION * (pressure_level + noise));
 			}
 		} // End inlet update
 
@@ -495,7 +513,8 @@ if ( rank == 0 ) {
 		
 #ifdef DEBUG
 		// 4.7. DEBUG: Print the current state of the simulation at the end of each iteration 
-		print_status( iter, rows, columns, flow, num_particles, particle_locations, max_var );
+		if (rank == 0)
+			print_status( iter, rows, columns, flow, num_particles, particle_locations, max_var );
 #endif
 
 	} // End iterations
@@ -513,7 +532,7 @@ if ( rank == 0 ) {
 		resultsC[ ind ] = accessMat( flow, res_row, ind * columns/6 );
 
 // MPI Version: Eliminate this conditional-end to start doing the work in parallel
-}
+// }
 	
 /*
  *

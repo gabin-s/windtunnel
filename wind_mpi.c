@@ -379,6 +379,17 @@ int main(int argc, char *argv[]) {
 	// absolute index of the first column
 	int j0 = rank * columns_per_task;
 
+	// array of particles to ignore (out of columns for this rank)
+	int* ignore_particles = (int *)calloc(num_particles, sizeof(int));
+
+	for( particle = 0; particle < num_particles; particle++ ) {
+		int c = particles[ particle ].pos_col;
+		if(c < j0 || c >= j0 + local_columns) 
+			ignore_particles[ particle ] = 1;
+		else
+			particles[ particle ].pos_col -= j0; // convert to local location
+	}
+
 // MPI Version: Eliminate this conditional to start doing the work in parallel
 // if ( rank == 0 ) {
 
@@ -437,6 +448,8 @@ int main(int argc, char *argv[]) {
 
 			int particle;
 			for( particle = 0; particle < num_particles; particle++ ) {
+				if(ignore_particles[ particle ]) continue;
+
 				int mass = particles[ particle ].mass;
 				// Fixed particles
 				if ( mass == 0 ) continue;
@@ -446,6 +459,8 @@ int main(int argc, char *argv[]) {
 
 			// Annotate position
 			for( particle = 0; particle < num_particles; particle++ ) {
+				if(ignore_particles[ particle ]) continue;
+
 				accessMat( particle_locations, 
 					particles[ particle ].pos_row / PRECISION,
 					particles[ particle ].pos_col / PRECISION ) += 1;
@@ -457,6 +472,8 @@ int main(int argc, char *argv[]) {
 		if ( iter % STEPS == 1 ) {
 			int particle;
 			for( particle = 0; particle < num_particles; particle++ ) {
+				if(ignore_particles[ particle ]) continue;
+
 				int row = particles[ particle ].pos_row / PRECISION;
 				int col = particles[ particle ].pos_col / PRECISION;
 
@@ -464,6 +481,8 @@ int main(int argc, char *argv[]) {
 				particles[ particle ].old_flow = accessMat( flow, row, col );
 			}
 			for( particle = 0; particle < num_particles; particle++ ) {
+				if(ignore_particles[ particle ]) continue;
+
 				int row = particles[ particle ].pos_row / PRECISION;
 				int col = particles[ particle ].pos_col / PRECISION;
 				int resistance = particles[ particle ].resistance;

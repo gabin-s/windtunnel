@@ -401,26 +401,38 @@ int main(int argc, char *argv[]) {
 				#pragma omp for
 				for( particle = 0; particle < num_particles; particle++ ) {
 					int mass = particles[ particle ].mass;
-					
-					// Mobile particles
-					if ( mass != 0 )
-						move_particle( flow, particles, particle, rows, columns );
-				
+					// Fixed particles
+					if ( mass == 0 ) continue;
+					// Movable particles
+					move_particle( flow, particles, particle, rows, columns );
+				} 
+
+				// Annotate position
+				#pragma omp for
+				for( particle = 0; particle < num_particles; particle++ ) {
 					#pragma omp atomic
 					accessMat( particle_locations, 
 						particles[ particle ].pos_row / PRECISION,
 						particles[ particle ].pos_col / PRECISION ) += 1;
-				
-					// 4.3. Effects due to particles each STEPS iterations				
-					// update flow at each particle's location
+				}
+
+				// 4.3. Effects due to particles each STEPS iterations				
+				// update flow at each particle's location
+				#pragma omp for
+				for( particle = 0; particle < num_particles; particle++ ) {
 					int row = particles[ particle ].pos_row / PRECISION;
 					int col = particles[ particle ].pos_col / PRECISION;
 
 					update_flow( flow, flow_copy, particle_locations, row, col, columns, 0 );
 					particles[ particle ].old_flow = accessMat( flow, row, col );
-				
-					// resistance
+				}
+
+				#pragma omp for
+				for( particle = 0; particle < num_particles; particle++ ) {
+					int row = particles[ particle ].pos_row / PRECISION;
+					int col = particles[ particle ].pos_col / PRECISION;
 					int resistance = particles[ particle ].resistance;
+
 					int back = (int)( (long)particles[ particle ].old_flow * resistance / PRECISION ) / accessMat( particle_locations, row, col );
 
 					#pragma omp atomic
@@ -457,11 +469,11 @@ int main(int argc, char *argv[]) {
 
 		if(wave_front > iter) wave_front = iter + 1;
 
-		int imax = (iter > rows) ? rows : iter; // fmin(iter, rows)
-
 		#pragma omp parallel 
 		{
 			// 4.4. Copy data in the ancillary structure
+			int imax = (iter > rows) ? rows : iter; // fmin(iter, rows)
+			
 			#pragma omp for collapse(2)
 			for( i=0; i<imax; i++ ) 
 				for( j=0; j<columns; j++ )

@@ -458,13 +458,6 @@ int main(int argc, char *argv[]) {
 			} // End of parallel block
 		} // End of operations performed each STEPS
 
-		// 4.4. Copy data in the ancillary structure
-		int imax = (iter > rows) ? rows : iter; // fmin(iter, rows)
-		#pragma omp parallel for collapse(2)
-		for( i=0; i<imax; i++ ) 
-			for( j=0; j<columns; j++ )
-				accessMat( flow_copy, i, j ) = accessMat( flow, i, j );
-
 		// 4.5. Propagation stage
 		// 4.5.1. Initialize data to detect maximum variability
 		if ( iter % STEPS == 1 ) max_var = 0;
@@ -476,15 +469,26 @@ int main(int argc, char *argv[]) {
 
 		if(wave_front > iter) wave_front = iter + 1;
 
-		#pragma omp parallel for reduction(max:max_var)
-		for( wave = wave_front; wave < rows; wave += STEPS) {
-			if ( wave > iter ) continue;
-			int col;
-			for( col=0; col<columns; col++) {
-				int var = update_flow( flow, flow_copy, particle_locations, wave, col, columns, 1 );
-				if ( var > max_var ) max_var = var;
-			}
-		} // End propagation
+		#pragma omp parallel 
+		{
+			// 4.4. Copy data in the ancillary structure
+			int imax = (iter > rows) ? rows : iter; // fmin(iter, rows)
+			
+			#pragma omp for collapse(2)
+			for( i=0; i<imax; i++ ) 
+				for( j=0; j<columns; j++ )
+					accessMat( flow_copy, i, j ) = accessMat( flow, i, j );
+
+			#pragma omp for reduction(max:max_var)
+			for( wave = wave_front; wave < rows; wave += STEPS) {
+				if ( wave > iter ) continue;
+				int col;
+				for( col=0; col<columns; col++) {
+					int var = update_flow( flow, flow_copy, particle_locations, wave, col, columns, 1 );
+					if ( var > max_var ) max_var = var;
+				}
+			} // End propagation
+		}
 #ifdef DEBUG
 		// 4.7. DEBUG: Print the current state of the simulation at the end of each iteration 
 		print_status( iter, rows, columns, flow, num_particles, particle_locations, max_var );

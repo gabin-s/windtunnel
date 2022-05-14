@@ -435,10 +435,10 @@ int main(int argc, char *argv[]) {
 
 					int back = (int)( (long)particles[ particle ].old_flow * resistance / PRECISION ) / accessMat( particle_locations, row, col );
 
-					//#pragma omp atomic
+					#pragma omp atomic
 					accessMat( flow, row, col ) -= back;
 
-					//#pragma omp atomic
+					#pragma omp atomic
 					accessMat( flow, row-1, col ) += back / 2;
 
 					if ( col > 0 )

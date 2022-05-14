@@ -347,113 +347,123 @@ int main(int argc, char *argv[]) {
  * START HERE: DO NOT CHANGE THE CODE ABOVE THIS POINT
  *
  */
+	double* noise;
 
 	/* 3. Initialization */
-	flow = (int *)malloc( sizeof(int) * (size_t)rows * (size_t)columns );
-	flow_copy = (int *)malloc( sizeof(int) * (size_t)rows * (size_t)columns );
-	particle_locations = (int *)malloc( sizeof(int) * (size_t)rows * (size_t)columns );
+	flow               = (int *)calloc( (size_t)rows * (size_t)columns, sizeof(int) );
+	flow_copy          = (int *)malloc( (size_t)rows * (size_t)columns * sizeof(int) );
+	particle_locations = (int *)calloc( (size_t)rows * (size_t)columns, sizeof(int) );
 
-	if ( flow == NULL || flow_copy == NULL || particle_locations == NULL ) {
+	noise = (double*) malloc(sizeof(double) * inlet_size);
+
+	if ( flow == NULL || flow_copy == NULL || particle_locations == NULL || noise == NULL ) {
 		fprintf(stderr,"-- Error allocating culture structures for size: %d x %d \n", rows, columns );
 		exit( EXIT_FAILURE );
 	}
-
-	for( i=0; i<rows; i++ ) {
-		for( j=0; j<columns; j++ ) {
-			accessMat( flow, i, j ) = 0;
-			accessMat( flow_copy, i, j ) = 0;
-			accessMat( particle_locations, i, j ) = 0;
-		}
-	}
-
 
 	/* 4. Simulation */
 	int max_var = INT_MAX;
 	int iter;
 	for( iter=1; iter<=max_iter && max_var > var_threshold; iter++) {
 
-		// 4.1. Change inlet values each STEP iterations
 		if ( iter % STEPS == 1 ) {
-			for ( j=inlet_pos; j<inlet_pos+inlet_size; j++ ) {
-				// 4.1.1. Change the fans phase
-				double phase = iter / STEPS * ( M_PI / 4 );
-				double phase_step = M_PI / 2 / inlet_size;
-				double pressure_level = 9 + 2 * sin( phase + (j-inlet_pos) * phase_step );
-	
-				// 4.1.2. Add some random noise
-				double noise = 0.5 - erand48( random_seq );
 
-				// 4.1.3. Store level in the first row of the ancillary structure
-				accessMat( flow, 0, j ) = (int)(PRECISION * (pressure_level + noise));
-			}
-		} // End inlet update
+			// generate noise data *before* going parallel
+			for(j = 0; j < inlet_size; j++)
+				noise[j] = 0.5 - erand48( random_seq );
 
+			#pragma omp parallel
+			{
+				// 4.1. Change inlet values each STEP iterations
+				#pragma omp for
+				for ( j=0; j<inlet_size; j++ ) {
+					// 4.1.1. Change the fans phase
+					double phase = iter / STEPS * ( M_PI / 4 );
+					double phase_step = M_PI / 2 / inlet_size;
+					double pressure_level = 9 + 2 * sin( phase + j * phase_step );
+		
+					// 4.1.2. Add some random noise
+					// 4.1.3. Store level in the first row of the ancillary structure
+					accessMat( flow, 0, j+inlet_pos ) = (int)(PRECISION * (pressure_level + noise[j]));
+				}
 
-#ifdef MODULE2
-#ifdef MODULE3
-		// 4.2. Particles movement each STEPS iterations
-		if ( iter % STEPS == 1 ) {
-			// Clean particle positions
-			for( i=0; i<=iter && i<rows; i++ ) 
-				for( j=0; j<columns; j++ )
-					accessMat( particle_locations, i, j ) = 0;
+				// 4.2. Particles movement each STEPS iterations
+				// Clean particle positions
+				int imax = (iter > rows) ? (rows - 1) : iter; // min(iter, rows - 1)
+		
+				#pragma omp for collapse(2)
+				for( i=0; i<=imax; i++ ) 
+					for( j=0; j<columns; j++ )
+						accessMat( particle_locations, i, j ) = 0;
 
-			int particle;
-			for( particle = 0; particle < num_particles; particle++ ) {
-				int mass = particles[ particle ].mass;
-				// Fixed particles
-				if ( mass == 0 ) continue;
-				// Movable particles
-				move_particle( flow, particles, particle, rows, columns );
-			} 
+				int particle;
 
-			// Annotate position
-			for( particle = 0; particle < num_particles; particle++ ) {
-				accessMat( particle_locations, 
-					particles[ particle ].pos_row / PRECISION,
-					particles[ particle ].pos_col / PRECISION ) += 1;
-			}
-		} // End particles movements
-#endif // MODULE3
+				#pragma omp for
+				for( particle = 0; particle < num_particles; particle++ ) {
+					int mass = particles[ particle ].mass;
+					// Fixed particles
+					if ( mass == 0 ) continue;
+					// Movable particles
+					move_particle( flow, particles, particle, rows, columns );
+				} 
 
-		// 4.3. Effects due to particles each STEPS iterations
-		if ( iter % STEPS == 1 ) {
-			int particle;
-			for( particle = 0; particle < num_particles; particle++ ) {
-				int row = particles[ particle ].pos_row / PRECISION;
-				int col = particles[ particle ].pos_col / PRECISION;
+				// Annotate position
+				#pragma omp for
+				for( particle = 0; particle < num_particles; particle++ ) {
+					#pragma omp atomic
+					accessMat( particle_locations, 
+						particles[ particle ].pos_row / PRECISION,
+						particles[ particle ].pos_col / PRECISION ) += 1;
+				}
 
-				update_flow( flow, flow_copy, particle_locations, row, col, columns, 0 );
-				particles[ particle ].old_flow = accessMat( flow, row, col );
-			}
-			for( particle = 0; particle < num_particles; particle++ ) {
-				int row = particles[ particle ].pos_row / PRECISION;
-				int col = particles[ particle ].pos_col / PRECISION;
-				int resistance = particles[ particle ].resistance;
+				// 4.3. Effects due to particles each STEPS iterations				
+				// update flow at each particle's location
+				#pragma omp for
+				for( particle = 0; particle < num_particles; particle++ ) {
+					int row = particles[ particle ].pos_row / PRECISION;
+					int col = particles[ particle ].pos_col / PRECISION;
 
-				int back = (int)( (long)particles[ particle ].old_flow * resistance / PRECISION ) / accessMat( particle_locations, row, col );
-				accessMat( flow, row, col ) -= back;
-			
-				accessMat( flow, row-1, col ) += back / 2;
+					update_flow( flow, flow_copy, particle_locations, row, col, columns, 0 );
+					particles[ particle ].old_flow = accessMat( flow, row, col );
+				}
 
-				if ( col > 0 )
-					accessMat( flow, row-1, col-1 ) += back / 4;
-				else
-					accessMat( flow, row-1, col ) += back / 4;
-				if ( col < columns-1 )
-					accessMat( flow, row-1, col+1 ) += back / 4;
-				else
-					accessMat( flow, row-1, col ) += back / 4;
-			}
-		} // End effects
-#endif // MODULE2
+				#pragma omp for
+				for( particle = 0; particle < num_particles; particle++ ) {
+					int row = particles[ particle ].pos_row / PRECISION;
+					int col = particles[ particle ].pos_col / PRECISION;
+					int resistance = particles[ particle ].resistance;
 
+					int back = (int)( (long)particles[ particle ].old_flow * resistance / PRECISION ) / accessMat( particle_locations, row, col );
+
+					//#pragma omp atomic
+					accessMat( flow, row, col ) -= back;
+
+					//#pragma omp atomic
+					accessMat( flow, row-1, col ) += back / 2;
+
+					if ( col > 0 )
+						#pragma omp atomic
+						accessMat( flow, row-1, col-1 ) += back / 4;
+					else
+						#pragma omp atomic
+						accessMat( flow, row-1, col ) += back / 4;
+
+					if ( col < columns-1 )
+						#pragma omp atomic
+						accessMat( flow, row-1, col+1 ) += back / 4;
+					else
+						#pragma omp atomic
+						accessMat( flow, row-1, col ) += back / 4;					
+				}
+			} // End of parallel block
+		} // End of operations performed each STEPS
 
 		// 4.4. Copy data in the ancillary structure
-		for( i=0; i<iter && i<rows; i++ ) 
+		int imax = (iter > rows) ? rows : iter; // fmin(iter, rows)
+		#pragma omp parallel for collapse(2)
+		for( i=0; i<imax; i++ ) 
 			for( j=0; j<columns; j++ )
 				accessMat( flow_copy, i, j ) = accessMat( flow, i, j );
-
 
 		// 4.5. Propagation stage
 		// 4.5.1. Initialize data to detect maximum variability
@@ -463,17 +473,18 @@ int main(int argc, char *argv[]) {
 		int wave_front = iter % STEPS;
 		if ( wave_front == 0 ) wave_front = STEPS;
 		int wave;
+
+		if(wave_front > iter) wave_front = iter + 1;
+
+		#pragma omp parallel for reduction(max:max_var)
 		for( wave = wave_front; wave < rows; wave += STEPS) {
 			if ( wave > iter ) continue;
 			int col;
 			for( col=0; col<columns; col++) {
 				int var = update_flow( flow, flow_copy, particle_locations, wave, col, columns, 1 );
-				if ( var > max_var ) {
-					max_var = var;
-				}
+				if ( var > max_var ) max_var = var;
 			}
 		} // End propagation
-		
 #ifdef DEBUG
 		// 4.7. DEBUG: Print the current state of the simulation at the end of each iteration 
 		print_status( iter, rows, columns, flow, num_particles, particle_locations, max_var );
@@ -481,7 +492,7 @@ int main(int argc, char *argv[]) {
 
 	} // End iterations
 
-	
+	free(noise);
 /*
  *
  * STOP HERE: DO NOT CHANGE THE CODE BELOW THIS POINT

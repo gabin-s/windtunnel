@@ -350,9 +350,10 @@ int main(int argc, char *argv[]) {
 	double* noise;
 
 	/* 3. Initialization */
+	// we don't `calloc` particle_locations and flow_copy, since those are initialized later
 	flow               = (int *)calloc( (size_t)rows * (size_t)columns, sizeof(int) );
 	flow_copy          = (int *)malloc( (size_t)rows * (size_t)columns * sizeof(int) );
-	particle_locations = (int *)calloc( (size_t)rows * (size_t)columns, sizeof(int) );
+	particle_locations = (int *)malloc( (size_t)rows * (size_t)columns * sizeof(int) );
 
 	noise = (double*) malloc(sizeof(double) * inlet_size);
 
@@ -388,14 +389,6 @@ int main(int argc, char *argv[]) {
 				}
 
 				// 4.2. Particles movement each STEPS iterations
-				// Clean particle positions
-				int imax = (iter > rows) ? (rows - 1) : iter; // min(iter, rows - 1)
-		
-				#pragma omp for collapse(2)
-				for( i=0; i<=imax; i++ ) 
-					for( j=0; j<columns; j++ )
-						accessMat( particle_locations, i, j ) = 0;
-
 				int particle;
 
 				#pragma omp for
@@ -406,6 +399,13 @@ int main(int argc, char *argv[]) {
 					// Movable particles
 					move_particle( flow, particles, particle, rows, columns );
 				} 
+
+				// Clean particle positions
+				int imax = (iter > rows) ? (rows - 1) : iter; // fmin(iter, rows - 1)
+				#pragma omp for collapse(2)
+				for( i=0; i<=imax; i++ ) 
+					for( j=0; j<columns; j++ )
+						accessMat( particle_locations, i, j ) = 0;
 
 				// Annotate position
 				#pragma omp for
@@ -465,21 +465,19 @@ int main(int argc, char *argv[]) {
 		// 4.5.2. Execute propagation on the wave fronts
 		int wave_front = iter % STEPS;
 		if ( wave_front == 0 ) wave_front = STEPS;
-		int wave;
-
-		if(wave_front > iter) wave_front = iter + 1;
+		if ( wave_front > iter ) wave_front = iter + 1;
 
 		#pragma omp parallel 
 		{
 			// 4.4. Copy data in the ancillary structure
 			int imax = (iter > rows) ? rows : iter; // fmin(iter, rows)
-			
 			#pragma omp for collapse(2)
 			for( i=0; i<imax; i++ ) 
 				for( j=0; j<columns; j++ )
 					accessMat( flow_copy, i, j ) = accessMat( flow, i, j );
 
-			#pragma omp for reduction(max:max_var)
+			int wave;
+			#pragma omp for reduction(max:max_var)	
 			for( wave = wave_front; wave < rows; wave += STEPS) {
 				if ( wave > iter ) continue;
 				int col;

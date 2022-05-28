@@ -19,7 +19,7 @@ args_t="$rows <cols> $max_iter $threshold $inlet_pos $inlet_size 0 0 0 0 0 0 123
 echo "# running $EXEC_PATH, with $n_threads thread(s)"
 echo "# args: $args_t"
 
-for cols in 100 500 1000 5000 10000; do
+for cols in $(seq 100 500 5100); do
     printf "%d" $cols
 
     args="$rows $cols $max_iter $threshold $inlet_pos $inlet_size \

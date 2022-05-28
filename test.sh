@@ -1,8 +1,12 @@
 #!/bin/sh
 
+
 EXEC_REF_PATH="./wind_seq"
-EXEC_PATH="./wind_seq"
+EXEC_PATH="./$1"
 TEST_CASES="test_cases"
+
+[ "$#" -ne "1" ]      && echo "usage: $0 <binary_path>" && exit 1
+[ ! -f "$EXEC_PATH" ] && echo "Binary not found: $EXEC_PATH" && exit 1
 
 run_test() {
     echo -n "$test_name: ..."
@@ -36,7 +40,7 @@ while read line || [ -n "$line" ]; do
             test_name=${line#-};;
         "E:"*) 
             expected=${line#E:}
-            run_test $args $expected;;
+            run_test;;
     esac
 
 done < "$TEST_CASES"

@@ -4,8 +4,6 @@ N_RUNS=5
 EXEC_PATH='./wind_omp'
 n_threads=4
 
-
-
 max_iter=1000
 threshold=0 # threshold=0 to prevent early stopping
 inlet_pos=0

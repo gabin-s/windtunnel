@@ -2,7 +2,7 @@
 _Project for the "Method in High Performance Computing" course (DD2356) at KTH_
 
 ## Information
-This project is proposed by _EduHPC 2021_.
+This project was originally proposed by _EduHPC 2021_.
 
 (c) 2021 Arturo Gonzalez-Escribano, Yuri Torres Group Trasgo, Universidad de Valladolid (Spain)
 

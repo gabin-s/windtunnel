@@ -15,7 +15,7 @@ args="$rows $cols $max_iter $threshold $inlet_pos $inlet_size 0 0 0 0 0 0 123 45
 echo "# running $EXEC_PATH, with <nthreads> thread(s)"
 echo "# args: $args"
 
-for nthreads in 1 2 4 8 16 32 64 128 256; do
+for nthreads in $(echo 1 2 4 8 $(seq 16 16 256)); do
     printf "%d" $nthreads
 
     export OMP_NUM_THREADS=$nthreads

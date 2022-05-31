@@ -1,8 +1,8 @@
 #!/bin/sh
 
-N_RUNS=1
+N_RUNS=5
 EXEC_PATH='./wind_seq'
-n_threads=8
+n_threads=56
 
 max_iter=1000
 threshold=0 # threshold=0 to prevent early stopping
@@ -43,7 +43,7 @@ args="$args 123 456 789"
 echo "# running $EXEC_PATH, with $n_threads thread(s)"
 echo "# args: $args"
 
-for partm_d in $(seq 0 0.1 1.0); do
+for partm_d in $(seq 0 0.05 0.8); do
     estimate_n_particles
     printf "%s %d" $partm_d $n_particles
 

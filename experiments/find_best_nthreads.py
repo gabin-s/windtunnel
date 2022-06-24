@@ -3,6 +3,9 @@ import itertools
 import subprocess, os
 import numpy as np
 
+import matplotlib.pyplot as plt
+import matplotlib as cm
+
 N_RUNS=5
 EXEC_PATH='.././wind_omp'
 
@@ -32,7 +35,7 @@ for rows, nthreads in itertools.product(rows_l, nthreads_l):
     args = [EXEC_PATH] + args_t.format(rows=rows).split(' ')
 
     # set the number of threads
-    env['OPENMP_NUM_THREADS'] = str(nthreads)
+    env['OMP_NUM_THREADS'] = str(nthreads)
 
     if coldrun:
         p = subprocess.Popen(args, stdout=subprocess.PIPE, env=env)
@@ -52,4 +55,14 @@ for rows, nthreads in itertools.product(rows_l, nthreads_l):
     print(rows, nthreads, t)
     r.append(t)
     
-    
+r = np.array(r).reshape(len(nthreads_l), len(rows_l))
+
+fig = plt.figure()
+ax = plt.axes(projection='3d')
+
+X, Y = np.meshgrid(rows_l, nthreads_l)
+ax.plot_surface(X, Y, r, cmap=cm.coolwarm)
+ax.xaxis.set_label('number of rows')
+ax.yaxis.set_label('number of threads')
+
+plt.show()

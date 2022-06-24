@@ -77,7 +77,7 @@ def exp_num_threads(lbl="25Melem"):
     stderr = stds / np.sqrt(nruns)
 
     print(f'exp_num_threads({lbl}): max(t)={max(t)}')
-
+    
     plt.errorbar(nthreads, t, yerr=stderr, capsize=2, elinewidth=1, ecolor='red')
     plt.xlabel('number of threads')
     plt.ylabel(f'Average runtime over {nruns} runs ($s$)')
@@ -148,7 +148,32 @@ def exp_num_threads_speedup_multi(variate="cols", param_vals=[1000, 5000, 10000]
     plt.ylabel('speedup (relative to 1 thread)')
     plt.tight_layout()
 
+def exp_add_particles():
+    """
+    Runtime as a function of the density of mobile particles
 
+    Description: 
+        We vary the density of mobile/fixed particles
+
+    Datafiles:
+        add_particles.results
+
+    Results:
+
+    """
+    plt.figure()
+
+    for lbl in ['mobile', 'fixed']:
+        density, npart, nruns, t, stds = read_data(f'add_particles_{lbl}.results', nparams=2)
+        
+        stderr = stds / np.sqrt(nruns)
+        
+        plt.errorbar(density, t, yerr=stderr, capsize=2, elinewidth=1, label=lbl)
+    
+    plt.legend(title='particle type')
+    plt.xlabel(f'particle density')
+    plt.ylabel(f'Average runtime over {nruns} runs ($s$)')
+    plt.tight_layout()
 
 # -- Runtime=f(nrows, ncols) --
 exp_variate_grid(nthreads=4)
@@ -189,3 +214,6 @@ plt.savefig('figures/num_threads_speedup_multi-variate-rows_20runs.svg')
 
 exp_num_threads_speedup_multi(variate='cols', param_vals=[1000, 5000, 10000])
 plt.savefig('figures/num_threads_speedup_multi-variate-cols_20runs.svg')
+
+exp_add_particles()
+plt.savefig('figures/add_particles.svg')

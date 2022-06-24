@@ -8,10 +8,11 @@ res_ref=$(./wind_seq $args)
 l_time=$(echo "$res_ref" | grep 'Time:')
 l_expected=$(echo "$res_ref" | grep 'Result:')
 
+echo "Args: $args"
 echo "Reference result: ${l_expected#Result: }"
 echo "Reference time:   ${l_time#Time: }"
 
-for n_threads in 1 2 4 8 16 32; do
+for n_threads in $(echo 1 2 4 8 $(seq 16 16 256)); do
     echo -n "$n_threads"
 
     for j in $(seq $N_RUNS); do
